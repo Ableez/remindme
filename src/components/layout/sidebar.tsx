@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "#/server/convex/_generated/api";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useAuth } from "@clerk/nextjs";
 import { Button } from "#/components/ui/button";
 import {
   Sidebar,
@@ -29,7 +29,8 @@ import {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const projects = useQuery(api.projects.list);
+  const { isSignedIn, isLoaded } = useAuth();
+  const projects = useQuery(api.projects.list, isLoaded && isSignedIn ? {} : "skip");
   const { setOpenMobile } = useSidebar();
 
   return (

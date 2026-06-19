@@ -9,12 +9,14 @@ import { NotesGrid } from "#/components/notes/notes-grid";
 import { ReminderList } from "#/components/reminders/reminder-list";
 import { Button } from "#/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable";
-import { Plus, ExternalLink, Lock, Globe, MessageSquare } from "lucide-react";
+import { Plus, ExternalLink, Lock, Globe } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
 
 export default function ProjectPage() {
   const params = useParams();
   const projectId = params.id as Id<"projects">;
-  const project = useQuery(api.projects.get, { projectId });
+  const { isSignedIn, isLoaded } = useAuth();
+  const project = useQuery(api.projects.get, isLoaded && isSignedIn ? { projectId } : "skip");
   const createNote = useMutation(api.notes.create);
   const [isCreating, setIsCreating] = useState(false);
 

@@ -6,10 +6,12 @@ import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Plus, GitBranch, Lock, Globe, StickyNote, Bell } from "lucide-react";
 import { CreateProjectDialog } from "#/components/project/create-project-dialog";
+import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 
 export default function DashboardPage() {
-  const projects = useQuery(api.projects.list);
+  const { isSignedIn, isLoaded } = useAuth();
+  const projects = useQuery(api.projects.list, isLoaded && isSignedIn ? {} : "skip");
   const [showCreate, setShowCreate] = useState(false);
 
   return (

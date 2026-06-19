@@ -9,9 +9,12 @@ import { Label } from "#/components/ui/label";
 import { Switch } from "#/components/ui/switch";
 import { Separator } from "#/components/ui/separator";
 import { Loader2, Check, GitBranch } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
 
 export default function SettingsPage() {
-  const settings = useQuery(api.settings.get);
+  const { isSignedIn, isLoaded } = useAuth();
+  const settings = useQuery(api.settings.get, isLoaded && isSignedIn ? {} : "skip");
+  const updateSettings = useMutation(api.settings.update);
   const updateSettings = useMutation(api.settings.update);
   const ensureSettings = useMutation(api.settings.ensureSettings);
   const [saving, setSaving] = useState(false);
