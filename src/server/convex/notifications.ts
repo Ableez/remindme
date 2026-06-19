@@ -3,7 +3,7 @@
 import webPush from "web-push";
 import { v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 function configureWebPush() {
   webPush.setVapidDetails(
