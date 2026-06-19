@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { api, internal } from "./_generated/api";
 
 export const list = query({
   args: {
@@ -38,16 +39,6 @@ export const get = query({
   },
 });
 
-export const listByProject = query({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("reminders")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .take(200);
-  },
-});
-
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
@@ -60,12 +51,24 @@ export const create = mutation({
       v.literal("high")
     ),
     remindBeforeMinutes: v.optional(v.number()),
+    recurring: v.optional(
+      v.union(
+        v.literal("daily"),
+        v.literal("weekly"),
+        v.literal("monthly")
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
     }
+    const existing = await ctx.db
+      .query("reminders")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(1);
+    const nextOrder = existing.length > 0 ? (existing[0].order ?? 0) + 1 : 0;
     return await ctx.db.insert("reminders", {
       projectId: args.projectId,
       userId: identity.tokenIdentifier,
@@ -75,6 +78,8 @@ export const create = mutation({
       dueDate: args.dueDate,
       priority: args.priority,
       remindBeforeMinutes: args.remindBeforeMinutes ?? 5,
+      order: nextOrder,
+      recurring: args.recurring,
     });
   },
 });
@@ -89,6 +94,13 @@ export const update = mutation({
       v.union(v.literal("low"), v.literal("medium"), v.literal("high"))
     ),
     remindBeforeMinutes: v.optional(v.number()),
+    recurring: v.optional(
+      v.union(
+        v.literal("daily"),
+        v.literal("weekly"),
+        v.literal("monthly")
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -106,6 +118,7 @@ export const update = mutation({
     if (args.priority !== undefined) updates.priority = args.priority;
     if (args.remindBeforeMinutes !== undefined)
       updates.remindBeforeMinutes = args.remindBeforeMinutes;
+    if (args.recurring !== undefined) updates.recurring = args.recurring;
     await ctx.db.patch(args.reminderId, updates);
   },
 });
@@ -121,10 +134,62 @@ export const toggle = mutation({
     if (!reminder || reminder.userId !== identity.tokenIdentifier) {
       throw new Error("Reminder not found");
     }
+    const nowCompleted = !reminder.completed;
     await ctx.db.patch(args.reminderId, {
-      completed: !reminder.completed,
-      completedAt: !reminder.completed ? Date.now() : undefined,
+      completed: nowCompleted,
+      completedAt: nowCompleted ? Date.now() : undefined,
     });
+  },
+});
+
+export const completeAll = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const reminders = await ctx.db
+      .query("reminders")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(200);
+    const now = Date.now();
+    for (const r of reminders) {
+      if (!r.completed && r.userId === identity.tokenIdentifier) {
+        await ctx.db.patch(r._id, { completed: true, completedAt: now });
+      }
+    }
+  },
+});
+
+export const deleteCompleted = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const reminders = await ctx.db
+      .query("reminders")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(200);
+    for (const r of reminders) {
+      if (r.completed && r.userId === identity.tokenIdentifier) {
+        await ctx.db.delete(r._id);
+      }
+    }
+  },
+});
+
+export const reorder = mutation({
+  args: {
+    reminderIds: v.array(v.id("reminders")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    for (let i = 0; i < args.reminderIds.length; i++) {
+      const r = await ctx.db.get(args.reminderIds[i]);
+      if (r && r.userId === identity.tokenIdentifier) {
+        await ctx.db.patch(args.reminderIds[i], { order: i });
+      }
+    }
   },
 });
 
@@ -140,5 +205,15 @@ export const remove = mutation({
       throw new Error("Reminder not found");
     }
     await ctx.db.delete(args.reminderId);
+  },
+});
+
+export const listByProject = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("reminders")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(200);
   },
 });
