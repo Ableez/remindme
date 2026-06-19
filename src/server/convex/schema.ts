@@ -18,8 +18,11 @@ export default defineSchema({
     userId: v.string(),
     content: v.string(),
     color: v.string(),
+    pinned: v.boolean(),
+    order: v.number(),
   })
     .index("by_projectId", ["projectId"])
+    .index("by_projectId_and_pinned", ["projectId", "pinned"])
     .searchIndex("search_content", {
       searchField: "content",
       filterFields: ["userId"],
@@ -39,9 +42,19 @@ export default defineSchema({
       v.literal("high")
     ),
     remindBeforeMinutes: v.number(),
+    order: v.number(),
+    scheduledJobId: v.optional(v.string()),
+    recurring: v.optional(
+      v.union(
+        v.literal("daily"),
+        v.literal("weekly"),
+        v.literal("monthly")
+      )
+    ),
   })
     .index("by_projectId", ["projectId"])
-    .index("by_userId_and_completed", ["userId", "completed"]),
+    .index("by_userId_and_completed", ["userId", "completed"])
+    .index("by_dueDate", ["dueDate"]),
 
   userSettings: defineTable({
     userId: v.string(),
