@@ -16,6 +16,7 @@ import type * as crons from "../crons.js";
 import type * as email from "../email.js";
 import type * as github from "../github.js";
 import type * as notes from "../notes.js";
+import type * as notifications from "../notifications.js";
 import type * as projects from "../projects.js";
 import type * as reminders from "../reminders.js";
 import type * as settings from "../settings.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   email: typeof email;
   github: typeof github;
   notes: typeof notes;
+  notifications: typeof notifications;
   projects: typeof projects;
   reminders: typeof reminders;
   settings: typeof settings;
