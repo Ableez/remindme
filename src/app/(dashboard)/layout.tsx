@@ -3,6 +3,8 @@
 import { AppSidebar } from "#/components/layout/sidebar";
 import { Topbar } from "#/components/layout/topbar";
 import { SidebarInset, SidebarProvider } from "#/components/ui/sidebar";
+import { CommandPalette } from "#/components/ui/command-palette";
+import { PageTransition } from "#/components/ui/page-transition";
 
 export default function DashboardLayout({
   children,
@@ -14,8 +16,11 @@ export default function DashboardLayout({
       <AppSidebar />
       <SidebarInset>
         <Topbar />
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          <PageTransition>{children}</PageTransition>
+        </main>
       </SidebarInset>
+      <CommandPalette />
     </SidebarProvider>
   );
 }
