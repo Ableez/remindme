@@ -12,13 +12,15 @@ import {
   DialogTitle,
 } from "#/components/ui/dialog";
 import { Button } from "#/components/ui/button";
-import { Maximize2, Trash2, Palette, Check } from "lucide-react";
+import { Maximize2, Trash2, Palette, Check, Pin, PinOff, GripVertical } from "lucide-react";
 import Link from "next/link";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "#/components/ui/popover";
+import { motion, AnimatePresence } from "framer-motion";
+import Markdown from "react-markdown";
 
 const NOTE_COLORS = [
   { name: "Yellow", hex: "#fbbf24" },
@@ -48,6 +50,15 @@ function getViewModeClass(mode: ViewMode): string {
   }
 }
 
+interface NoteDoc {
+  _id: Id<"notes">;
+  _creationTime: number;
+  content: string;
+  color: string;
+  pinned?: boolean;
+  order?: number;
+}
+
 export function NotesGrid({ projectId }: { projectId: Id<"projects"> }) {
   const notes = useQuery(api.notes.list, { projectId });
   const updateNote = useMutation(api.notes.update);
@@ -56,7 +67,6 @@ export function NotesGrid({ projectId }: { projectId: Id<"projects"> }) {
   const [viewMode, setViewMode] = useState<ViewMode>("3col");
   const [selectedNote, setSelectedNote] = useState<Id<"notes"> | null>(null);
 
-  // Persist view mode
   useEffect(() => {
     const saved = localStorage.getItem("notes-view-mode") as ViewMode;
     if (saved) setViewMode(saved);
@@ -69,7 +79,7 @@ export function NotesGrid({ projectId }: { projectId: Id<"projects"> }) {
 
   if (notes === undefined) {
     return (
-      <div className={getViewModeClass(viewMode === "list" ? "3col" : viewMode)}>
+      <div className={getViewModeClass(viewMode === "list" ? "3col" : viewMode) + " grid gap-3"}>
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="h-40 rounded-lg bg-muted animate-pulse" />
         ))}
@@ -85,13 +95,17 @@ export function NotesGrid({ projectId }: { projectId: Id<"projects"> }) {
     );
   }
 
-  // Mobile: always list view
+  const sortedNotes = [...notes].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+
   const effectiveMode = isMobile ? "list" : viewMode;
   const isListMode = effectiveMode === "list";
 
   return (
     <div className="space-y-4">
-      {/* View mode toggle (desktop only) */}
       {!isMobile && (
         <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
           {(["3col", "2col", "1col", "list"] as ViewMode[]).map((mode) => (
@@ -104,13 +118,12 @@ export function NotesGrid({ projectId }: { projectId: Id<"projects"> }) {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {mode === "3col" ? "3" : mode === "2col" ? "2" : mode === "1col" ? "1" : "☰"}
+              {mode === "3col" ? "3" : mode === "2col" ? "2" : mode === "1col" ? "1" : "\u2630"}
             </button>
           ))}
         </div>
       )}
 
-      {/* Notes grid/list */}
       <div
         className={
           isListMode
@@ -118,25 +131,42 @@ export function NotesGrid({ projectId }: { projectId: Id<"projects"> }) {
             : `grid ${getViewModeClass(effectiveMode)} gap-3`
         }
       >
-        {notes.map((note) =>
-          isListMode ? (
-            <NoteListItem
-              key={note._id}
-              note={note}
-              onClick={() => setSelectedNote(note._id)}
-            />
-          ) : (
-            <NoteCard
-              key={note._id}
-              note={note}
-              onUpdate={updateNote}
-              onDelete={removeNote}
-            />
-          )
-        )}
+        <AnimatePresence mode="popLayout">
+          {sortedNotes.map((note) =>
+            isListMode ? (
+              <motion.div
+                key={note._id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+              >
+                <NoteListItem
+                  note={note}
+                  onClick={() => setSelectedNote(note._id)}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key={note._id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+              >
+                <NoteCard
+                  note={note}
+                  onUpdate={updateNote}
+                  onDelete={removeNote}
+                />
+              </motion.div>
+            )
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Note drawer for mobile/list */}
       <Dialog
         open={selectedNote !== null}
         onOpenChange={(open) => !open && setSelectedNote(null)}
@@ -159,8 +189,8 @@ function NoteCard({
   onUpdate,
   onDelete,
 }: {
-  note: { _id: Id<"notes">; content: string; color: string };
-  onUpdate: (args: { noteId: Id<"notes">; content?: string; color?: string }) => void;
+  note: NoteDoc;
+  onUpdate: (args: { noteId: Id<"notes">; content?: string; color?: string; pinned?: boolean }) => void;
   onDelete: (args: { noteId: Id<"notes"> }) => void;
 }) {
   const [content, setContent] = useState(note.content);
@@ -181,19 +211,19 @@ function NoteCard({
     timerRef.current = setTimeout(save, 1000);
   };
 
-  const handleColorChange = (color: string) => {
-    onUpdate({ noteId: note._id, color });
-  };
-
-  const handleDelete = () => {
-    onDelete({ noteId: note._id });
-  };
-
   return (
-    <div
-      className="rounded-lg p-4 min-h-[160px] flex flex-col transition-colors"
+    <motion.div
+      className="rounded-lg p-4 min-h-[160px] flex flex-col shadow-sm hover:shadow-md transition-shadow cursor-default group"
       style={{ backgroundColor: note.color + "33" }}
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.15 }}
     >
+      {note.pinned && (
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-2">
+          <Pin className="h-3 w-3" />
+          Pinned
+        </div>
+      )}
       <textarea
         value={content}
         onChange={handleChange}
@@ -201,18 +231,31 @@ function NoteCard({
         placeholder="Write something..."
         className="flex-1 bg-transparent resize-none outline-none text-sm placeholder:text-muted-foreground/50"
       />
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-black/5">
-        <ColorPicker color={note.color} onChange={handleColorChange} />
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-black/5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1">
+          <ColorPicker
+            color={note.color}
+            onChange={(color) => onUpdate({ noteId: note._id, color })}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground"
+            onClick={() => onUpdate({ noteId: note._id, pinned: !note.pinned })}
+          >
+            {note.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
         <Button
           variant="ghost"
           size="icon"
           className="h-7 w-7 text-muted-foreground hover:text-destructive"
-          onClick={handleDelete}
+          onClick={() => onDelete({ noteId: note._id })}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -220,7 +263,7 @@ function NoteListItem({
   note,
   onClick,
 }: {
-  note: { _id: Id<"notes">; content: string; color: string };
+  note: NoteDoc;
   onClick: () => void;
 }) {
   return (
@@ -233,9 +276,14 @@ function NoteListItem({
         className="w-3 h-3 rounded-full flex-shrink-0 mt-0.5"
         style={{ backgroundColor: note.color }}
       />
-      <p className="text-sm line-clamp-2 flex-1">
-        {note.content || "Empty note"}
-      </p>
+      <div className="flex-1 min-w-0">
+        {note.pinned && (
+          <Pin className="h-3 w-3 text-muted-foreground inline mr-1" />
+        )}
+        <p className="text-sm line-clamp-2">
+          {note.content || "Empty note"}
+        </p>
+      </div>
     </div>
   );
 }
