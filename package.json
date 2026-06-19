@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:next": "NODE_OPTIONS='--max-old-space-size=2048' next dev",
+    "dev:next": "next dev",
     "dev:convex": "pnpx convex dev",
     "dev": "npm-run-all -p dev:next dev:convex",
     "build": "next build",

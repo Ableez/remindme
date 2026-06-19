@@ -15,7 +15,6 @@ export default function SettingsPage() {
   const { isSignedIn, isLoaded } = useAuth();
   const settings = useQuery(api.settings.get, isLoaded && isSignedIn ? {} : "skip");
   const updateSettings = useMutation(api.settings.update);
-  const updateSettings = useMutation(api.settings.update);
   const ensureSettings = useMutation(api.settings.ensureSettings);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);

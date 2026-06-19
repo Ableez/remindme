@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "#/server/convex/_generated/api";
-import { useAuth } from "@clerk/nextjs";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +32,6 @@ export function CreateProjectDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { getToken } = useAuth();
   const fetchRepos = useAction(api.github.fetchRepos);
   const createProject = useMutation(api.projects.create);
   const ensureSettings = useMutation(api.settings.ensureSettings);
@@ -49,21 +47,22 @@ export function CreateProjectDialog({
 
     (async () => {
       try {
-        const token = await getToken({ template: "github" });
-        if (!token) {
-          setError("GitHub access not available. Please re-authorize with GitHub.");
+        const res = await fetch("/api/github-token");
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error ?? "Failed to get GitHub token");
           setLoading(false);
           return;
         }
-        const data = await fetchRepos({ githubToken: token });
-        setRepos(data);
+        const repos = await fetchRepos({ githubToken: data.token });
+        setRepos(repos);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to fetch repos");
       } finally {
         setLoading(false);
       }
     })();
-  }, [open, getToken, fetchRepos]);
+  }, [open, fetchRepos]);
 
   const handleCreate = async (repo: GitHubRepo) => {
     setCreating(repo.repoId);
